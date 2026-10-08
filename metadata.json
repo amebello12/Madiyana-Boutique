@@ -1,0 +1,6 @@
+{
+  "name": "TOUBA MADIYINA ELECTRONIC",
+  "description": "Boutique e-commerce d'électronique, électroménager et maison au Sénégal (Dakar). Compatible Shopify avec gestionnaire de catalogue et exportateur de thème.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

@@ -1,0 +1,176 @@
+{
+  "entities": {
+    "Product": {
+      "title": "Product",
+      "description": "Article ou produit du catalogue partagé en temps réel",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "sku": { "type": "string" },
+        "price": { "type": "number" },
+        "compareAtPrice": { "type": "number" },
+        "discountPercentage": { "type": "number" },
+        "category": { "type": "string" },
+        "brand": { "type": "string" },
+        "images": { "type": "array" },
+        "description": { "type": "string" },
+        "features": { "type": "array" },
+        "specs": { "type": "object" },
+        "inStock": { "type": "boolean" },
+        "stockCount": { "type": "number" },
+        "isFeatured": { "type": "boolean" },
+        "isFlashSale": { "type": "boolean" },
+        "flashSaleEnds": { "type": "string" },
+        "rating": { "type": "number" },
+        "reviewCount": { "type": "number" },
+        "tags": { "type": "array" },
+        "warranty": { "type": "string" },
+        "createdAt": { "type": "string" },
+        "shopifyHandle": { "type": "string" }
+      },
+      "required": ["id", "title", "price", "category", "inStock"]
+    },
+    "Category": {
+      "title": "Category",
+      "description": "Catégorie de produits",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "slug": { "type": "string" },
+        "icon": { "type": "string" },
+        "image": { "type": "string" },
+        "description": { "type": "string" },
+        "itemCount": { "type": "number" }
+      },
+      "required": ["id", "name", "slug"]
+    },
+    "Article": {
+      "title": "Article",
+      "description": "Article de blog ou guide conseil",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "excerpt": { "type": "string" },
+        "content": { "type": "string" },
+        "image": { "type": "string" },
+        "author": { "type": "string" },
+        "date": { "type": "string" },
+        "category": { "type": "string" },
+        "readTime": { "type": "string" }
+      },
+      "required": ["id", "title", "content"]
+    },
+    "CustomPage": {
+      "title": "CustomPage",
+      "description": "Page institutionnelle",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "slug": { "type": "string" },
+        "content": { "type": "string" },
+        "updatedAt": { "type": "string" }
+      },
+      "required": ["id", "title", "slug"]
+    },
+    "Review": {
+      "title": "Review",
+      "description": "Avis client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "productId": { "type": "string" },
+        "author": { "type": "string" },
+        "rating": { "type": "number" },
+        "comment": { "type": "string" },
+        "date": { "type": "string" },
+        "verifiedBuyer": { "type": "boolean" },
+        "city": { "type": "string" },
+        "helpfulCount": { "type": "number" }
+      },
+      "required": ["id", "productId", "rating", "comment"]
+    },
+    "Coupon": {
+      "title": "Coupon",
+      "description": "Code promo",
+      "type": "object",
+      "properties": {
+        "code": { "type": "string" },
+        "discountPercentage": { "type": "number" },
+        "description": { "type": "string" },
+        "minOrderAmount": { "type": "number" },
+        "expiresAt": { "type": "string" },
+        "isActive": { "type": "boolean" }
+      },
+      "required": ["code", "discountPercentage", "isActive"]
+    },
+    "StoreSettings": {
+      "title": "StoreSettings",
+      "description": "Configuration du magasin et contact Dakar",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "tagline": { "type": "string" },
+        "address": { "type": "string" },
+        "contactPhone": { "type": "string" },
+        "whatsappNumber": { "type": "string" },
+        "email": { "type": "string" }
+      },
+      "required": ["name", "contactPhone", "whatsappNumber"]
+    },
+    "Order": {
+      "title": "Order",
+      "description": "Commande client",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "customer": { "type": "object" },
+        "items": { "type": "array" },
+        "total": { "type": "number" },
+        "status": { "type": "string" },
+        "paymentStatus": { "type": "string" },
+        "date": { "type": "string" }
+      },
+      "required": ["id", "total", "status"]
+    }
+  },
+  "firestore": {
+    "/products/{productId}": {
+      "schema": { "$ref": "#/entities/Product" },
+      "description": "Articles du catalogue partagés en temps réel entre tous les appareils"
+    },
+    "/categories/{categoryId}": {
+      "schema": { "$ref": "#/entities/Category" },
+      "description": "Catégories de produits"
+    },
+    "/articles/{articleId}": {
+      "schema": { "$ref": "#/entities/Article" },
+      "description": "Articles de blog et guides d'achat"
+    },
+    "/pages/{pageId}": {
+      "schema": { "$ref": "#/entities/CustomPage" },
+      "description": "Pages institutionnelles"
+    },
+    "/reviews/{reviewId}": {
+      "schema": { "$ref": "#/entities/Review" },
+      "description": "Avis clients"
+    },
+    "/coupons/{couponId}": {
+      "schema": { "$ref": "#/entities/Coupon" },
+      "description": "Codes promo et remises"
+    },
+    "/settings/{settingId}": {
+      "schema": { "$ref": "#/entities/StoreSettings" },
+      "description": "Configuration de la boutique"
+    },
+    "/orders/{orderId}": {
+      "schema": { "$ref": "#/entities/Order" },
+      "description": "Commandes clients"
+    }
+  }
+}
