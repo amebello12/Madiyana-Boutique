@@ -7,6 +7,7 @@ import { AdminArticlesTab } from './AdminArticlesTab';
 import { Product, Category, SenegalZone, Order } from '../types';
 import { generateShopifyThemeZip } from '../utils/shopifyThemeGenerator';
 import { exportProductsToShopifyCSV } from '../utils/shopifyCsvExporter';
+import { compressImageFile } from '../utils/imageCompressor';
 import {
   Package,
   FolderPlus,
@@ -153,20 +154,7 @@ export const AdminPanel: React.FC = () => {
 
     setImageUploadError(null);
 
-    const readPromises = fileArray.map((file) => {
-      return new Promise<string>((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = (e) => {
-          if (e.target?.result) {
-            resolve(e.target.result as string);
-          } else {
-            reject(new Error('Erreur de lecture'));
-          }
-        };
-        reader.onerror = () => reject(new Error('Erreur de lecture'));
-        reader.readAsDataURL(file);
-      });
-    });
+    const readPromises = fileArray.map((file) => compressImageFile(file, 1000, 1000, 0.82));
 
     Promise.all(readPromises)
       .then((base64Urls) => {
@@ -482,28 +470,16 @@ export const AdminPanel: React.FC = () => {
       isFlashSale: Boolean(productForm.isFlashSale)
     };
 
-    if (numComparePrice > 0) {
-      payload.compareAtPrice = numComparePrice;
-    }
-    if (discountPercentage) {
-      payload.discountPercentage = discountPercentage;
-    }
-    if (productForm.warranty) {
-      payload.warranty = productForm.warranty;
-    }
-    if (productForm.flashSaleEnds) {
-      payload.flashSaleEnds = productForm.flashSaleEnds;
-    }
-    if (productForm.shopifyHandle) {
-      payload.shopifyHandle = productForm.shopifyHandle;
-    }
+    payload.compareAtPrice = numComparePrice > 0 ? numComparePrice : undefined;
+    payload.discountPercentage = discountPercentage;
+    payload.warranty = productForm.warranty ? productForm.warranty : undefined;
+    payload.flashSaleEnds = productForm.isFlashSale && productForm.flashSaleEnds ? productForm.flashSaleEnds : undefined;
+    payload.shopifyHandle = productForm.shopifyHandle ? productForm.shopifyHandle : undefined;
 
     if (editingProductId) {
       updateProduct(editingProductId, payload);
-      addToast(`Article mis à jour avec succès (${finalImages.length} photo${finalImages.length > 1 ? 's' : ''})`, 'success');
     } else {
       addProduct(payload);
-      addToast(`Nouvel article ajouté au catalogue et synchronisé en temps réel sur tous les appareils !`, 'success');
     }
 
     setShowAddProductModal(false);

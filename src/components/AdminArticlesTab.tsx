@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { useStore } from '../context/StoreContext';
 import { Article } from '../types';
+import { compressImageFile } from '../utils/imageCompressor';
 import {
   BookOpen,
   Plus,
@@ -13,7 +14,8 @@ import {
   CheckCircle,
   Eye,
   RotateCcw,
-  Tag
+  Tag,
+  Upload
 } from 'lucide-react';
 
 export const AdminArticlesTab: React.FC = () => {
@@ -86,13 +88,11 @@ export const AdminArticlesTab: React.FC = () => {
         ...form,
         slug
       });
-      addToast('Article de conseil mis à jour et synchronisé', 'success');
     } else {
       addArticle({
         ...form,
         slug
       });
-      addToast('Nouvel article de conseil publié et synchronisé en temps réel sur tous les appareils', 'success');
     }
 
     setShowAddModal(false);
@@ -260,19 +260,52 @@ export const AdminArticlesTab: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-bold text-slate-700 mb-1">URL de l'image de couverture</label>
-                <input
-                  type="url"
-                  value={form.image}
-                  onChange={(e) => setForm({ ...form, image: e.target.value })}
-                  placeholder="https://..."
-                  className="w-full px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:border-blue-600"
-                />
-                {form.image && (
-                  <div className="mt-2 h-24 rounded-xl overflow-hidden border border-slate-200 bg-slate-100">
-                    <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                <label className="block font-bold text-slate-700 mb-1">Image de couverture</label>
+                <div className="space-y-2">
+                  <div className="flex gap-2">
+                    <input
+                      type="url"
+                      value={form.image}
+                      onChange={(e) => setForm({ ...form, image: e.target.value })}
+                      placeholder="https://... ou téléversez ci-contre"
+                      className="flex-1 px-3.5 py-2.5 rounded-xl border border-slate-300 text-slate-900 focus:outline-none focus:border-blue-600 text-xs sm:text-sm"
+                    />
+                    <label className="px-3 py-2.5 bg-slate-100 hover:bg-slate-200 text-slate-700 font-bold rounded-xl cursor-pointer flex items-center gap-1.5 text-xs transition-colors shrink-0">
+                      <Upload className="w-4 h-4 text-slate-600" />
+                      <span>Photo</span>
+                      <input
+                        type="file"
+                        accept="image/*"
+                        className="hidden"
+                        onChange={async (e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            try {
+                              const compressed = await compressImageFile(file, 1000, 1000, 0.82);
+                              setForm((prev) => ({ ...prev, image: compressed }));
+                              addToast('Photo de couverture compressée et prête', 'info');
+                            } catch {
+                              addToast('Erreur lors du traitement de l\'image', 'error');
+                            }
+                          }
+                        }}
+                      />
+                    </label>
                   </div>
-                )}
+                  {form.image && (
+                    <div className="mt-2 h-28 rounded-xl overflow-hidden border border-slate-200 bg-slate-100 relative group">
+                      <img src={form.image} alt="Preview" className="w-full h-full object-cover" />
+                      <button
+                        type="button"
+                        onClick={() => setForm({ ...form, image: '' })}
+                        className="absolute top-2 right-2 bg-rose-600 text-white rounded-full p-1 opacity-80 hover:opacity-100 text-xs"
+                        title="Retirer l'image"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
               </div>
 
               <div>

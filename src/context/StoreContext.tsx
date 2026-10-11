@@ -212,33 +212,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     return stored;
   });
 
-  const [products, setProducts] = useState<Product[]>(() => {
-    const stored = loadStored<Product[]>('products', initialProducts);
-    if (stored && Array.isArray(stored)) {
-      const existingIds = new Set(stored.map((p) => p.id));
-      const missing = initialProducts.filter((p) => !existingIds.has(p.id));
-      if (missing.length > 0) {
-        const merged = [...stored, ...missing];
-        localStorage.setItem('tme_products', JSON.stringify(merged));
-        return merged;
-      }
-    }
-    return stored;
-  });
-
-  const [categories, setCategories] = useState<Category[]>(() => {
-    const stored = loadStored<Category[]>('categories', initialCategories);
-    if (stored && Array.isArray(stored)) {
-      const existingIds = new Set(stored.map((c) => c.id));
-      const missing = initialCategories.filter((c) => !existingIds.has(c.id));
-      if (missing.length > 0) {
-        const merged = [...stored, ...missing];
-        localStorage.setItem('tme_categories', JSON.stringify(merged));
-        return merged;
-      }
-    }
-    return stored;
-  });
+  const [products, setProducts] = useState<Product[]>(() => loadStored<Product[]>('products', initialProducts));
+  const [categories, setCategories] = useState<Category[]>(() => loadStored<Category[]>('categories', initialCategories));
   const [articles, setArticles] = useState<Article[]>(() => loadStored('articles', initialArticles));
   const [pages, setPages] = useState<CustomPage[]>(() => loadStored('pages', initialPages));
   const [reviews, setReviews] = useState<Review[]>(() => loadStored('reviews', initialReviews));
@@ -259,7 +234,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
   const [cloudSyncStatus, setCloudSyncStatus] = useState<'connected' | 'syncing' | 'offline'>('connected');
   const [lastCloudSync, setLastCloudSync] = useState<Date | null>(new Date());
   const [isSyncingNow, setIsSyncingNow] = useState<boolean>(false);
-  const isInitialLoadDone = useRef(false);
+  const hasSeededRef = useRef(false);
 
   // Active View & Navigation
   const [activeView, setActiveView] = useState<ActiveView>('home');
@@ -346,11 +321,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribeProducts = onSnapshot(
       collection(db, 'products'),
       (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudProducts: Product[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudProducts.push({ ...(docSnap.data() as Product), id: docSnap.id });
-          });
+        const cloudProducts: Product[] = [];
+        snapshot.forEach((docSnap) => {
+          cloudProducts.push({ ...(docSnap.data() as Product), id: docSnap.id });
+        });
+
+        if (cloudProducts.length > 0) {
           // Sort stably so newly added articles appear first across all devices
           cloudProducts.sort((a, b) => {
             const timeA = new Date(a.createdAt || 0).getTime() || 0;
@@ -360,16 +336,22 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           });
           setProducts(cloudProducts);
           localStorage.setItem('tme_products', JSON.stringify(cloudProducts));
-        } else if (!isInitialLoadDone.current) {
-          // Seed cloud database if empty on first boot
+        } else if (!hasSeededRef.current) {
+          hasSeededRef.current = true;
           seedInitialFirestoreData();
+        } else {
+          setProducts([]);
+          localStorage.setItem('tme_products', JSON.stringify([]));
         }
+
         setIsCloudConnected(true);
         setCloudSyncStatus('connected');
         setLastCloudSync(new Date());
       },
       (error) => {
         console.warn('Firestore Products sync error:', error);
+        setIsCloudConnected(false);
+        setCloudSyncStatus('offline');
       }
     );
 
@@ -377,14 +359,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribeCoupons = onSnapshot(
       collection(db, 'coupons'),
       (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudCoupons: Coupon[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudCoupons.push({ ...(docSnap.data() as Coupon), code: docSnap.id });
-          });
-          setCoupons(cloudCoupons);
-          localStorage.setItem('tme_coupons', JSON.stringify(cloudCoupons));
-        }
+        const cloudCoupons: Coupon[] = [];
+        snapshot.forEach((docSnap) => {
+          cloudCoupons.push({ ...(docSnap.data() as Coupon), code: docSnap.id });
+        });
+        setCoupons(cloudCoupons);
+        localStorage.setItem('tme_coupons', JSON.stringify(cloudCoupons));
       },
       (error) => console.warn('Firestore Coupons sync error:', error)
     );
@@ -406,11 +386,11 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribeCategories = onSnapshot(
       collection(db, 'categories'),
       (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudCategories: Category[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudCategories.push({ ...(docSnap.data() as Category), id: docSnap.id });
-          });
+        const cloudCategories: Category[] = [];
+        snapshot.forEach((docSnap) => {
+          cloudCategories.push({ ...(docSnap.data() as Category), id: docSnap.id });
+        });
+        if (cloudCategories.length > 0) {
           setCategories(cloudCategories);
           localStorage.setItem('tme_categories', JSON.stringify(cloudCategories));
         }
@@ -422,14 +402,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribeReviews = onSnapshot(
       collection(db, 'reviews'),
       (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudReviews: Review[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudReviews.push({ ...(docSnap.data() as Review), id: docSnap.id });
-          });
-          setReviews(cloudReviews);
-          localStorage.setItem('tme_reviews', JSON.stringify(cloudReviews));
-        }
+        const cloudReviews: Review[] = [];
+        snapshot.forEach((docSnap) => {
+          cloudReviews.push({ ...(docSnap.data() as Review), id: docSnap.id });
+        });
+        setReviews(cloudReviews);
+        localStorage.setItem('tme_reviews', JSON.stringify(cloudReviews));
       },
       (error) => console.warn('Firestore Reviews sync error:', error)
     );
@@ -438,13 +416,20 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribeArticles = onSnapshot(
       collection(db, 'articles'),
       (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudArticles: Article[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudArticles.push({ ...(docSnap.data() as Article), id: docSnap.id });
-          });
+        const cloudArticles: Article[] = [];
+        snapshot.forEach((docSnap) => {
+          cloudArticles.push({ ...(docSnap.data() as Article), id: docSnap.id });
+        });
+        cloudArticles.sort((a, b) => b.id.localeCompare(a.id));
+        if (cloudArticles.length > 0) {
           setArticles(cloudArticles);
           localStorage.setItem('tme_articles', JSON.stringify(cloudArticles));
+        } else if (!hasSeededRef.current) {
+          hasSeededRef.current = true;
+          seedInitialFirestoreData();
+        } else {
+          setArticles([]);
+          localStorage.setItem('tme_articles', JSON.stringify([]));
         }
       },
       (error) => console.warn('Firestore Articles sync error:', error)
@@ -454,19 +439,17 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     const unsubscribePages = onSnapshot(
       collection(db, 'pages'),
       (snapshot) => {
-        if (!snapshot.empty) {
-          const cloudPages: CustomPage[] = [];
-          snapshot.forEach((docSnap) => {
-            cloudPages.push({ ...(docSnap.data() as CustomPage), id: docSnap.id });
-          });
+        const cloudPages: CustomPage[] = [];
+        snapshot.forEach((docSnap) => {
+          cloudPages.push({ ...(docSnap.data() as CustomPage), id: docSnap.id });
+        });
+        if (cloudPages.length > 0) {
           setPages(cloudPages);
           localStorage.setItem('tme_pages', JSON.stringify(cloudPages));
         }
       },
       (error) => console.warn('Firestore Pages sync error:', error)
     );
-
-    isInitialLoadDone.current = true;
 
     return () => {
       unsubscribeOrders();
@@ -782,9 +765,12 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
 
     // 2. Persist to Cloud Firestore (Single Central Database)
     // When saved, Firestore distributes this order to all connected phones/PCs in real time!
-    setDoc(doc(db, 'orders', newOrder.id), newOrder)
+    const cleanOrder = sanitizeForFirestore(newOrder);
+    setDoc(doc(db, 'orders', newOrder.id), cleanOrder)
       .then(() => {
         console.log(`Order ${newOrder.orderNumber} synchronized to Central Firestore.`);
+        setLastCloudSync(new Date());
+        setIsCloudConnected(true);
       })
       .catch((err) => {
         console.error('Error saving order to Firestore:', err);
@@ -834,9 +820,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setOrders((prev) => prev.map((o) => (o.id === orderId ? updatedOrder : o)));
 
     // Firestore Sync
-    setDoc(doc(db, 'orders', orderId), updatedOrder, { merge: true }).catch((err) =>
-      console.error('Error updating order status in Firestore:', err)
-    );
+    const cleanUpdatedOrder = sanitizeForFirestore(updatedOrder);
+    setDoc(doc(db, 'orders', orderId), cleanUpdatedOrder, { merge: true })
+      .then(() => {
+        setLastCloudSync(new Date());
+        setIsCloudConnected(true);
+      })
+      .catch((err) =>
+        console.error('Error updating order status in Firestore:', err)
+      );
 
     addToast(`Statut de la commande mis à jour (${status})`, 'info');
   };
@@ -937,7 +929,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     setReviews((prev) => [newRev, ...prev]);
 
     // Firestore Sync
-    setDoc(doc(db, 'reviews', id), newRev).catch((err) => console.error(err));
+    setDoc(doc(db, 'reviews', id), sanitizeForFirestore(newRev)).catch((err) => console.error(err));
 
     // Recalculate product rating
     setProducts((prev) =>
@@ -952,7 +944,7 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
             reviewCount: p.reviewCount + 1
           };
           // Sync product rating
-          setDoc(doc(db, 'products', p.id), updatedProduct, { merge: true }).catch((err) => console.error(err));
+          setDoc(doc(db, 'products', p.id), sanitizeForFirestore(updatedProduct), { merge: true }).catch((err) => console.error(err));
           return updatedProduct;
         }
         return p;
@@ -995,8 +987,15 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map((p) => {
         if (p.id === id) {
           const updated = { ...p, ...updatedFields };
+          // If any field in updatedFields was set to undefined, delete it from updated
+          for (const key of Object.keys(updatedFields)) {
+            if ((updatedFields as any)[key] === undefined) {
+              delete (updated as any)[key];
+            }
+          }
           const cleanPayload = sanitizeForFirestore(updated);
-          setDoc(doc(db, 'products', id), cleanPayload, { merge: true })
+          // Overwrite document so removed properties (e.g. promo/compareAtPrice) are cleanly deleted in Firestore
+          setDoc(doc(db, 'products', id), cleanPayload)
             .then(() => {
               setLastCloudSync(new Date());
               setIsCloudConnected(true);
@@ -1103,8 +1102,13 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
       prev.map((a) => {
         if (a.id === id) {
           const updatedArticle = { ...a, ...updated };
+          for (const key of Object.keys(updated)) {
+            if ((updated as any)[key] === undefined) {
+              delete (updatedArticle as any)[key];
+            }
+          }
           const cleanPayload = sanitizeForFirestore(updatedArticle);
-          setDoc(doc(db, 'articles', id), cleanPayload, { merge: true })
+          setDoc(doc(db, 'articles', id), cleanPayload)
             .then(() => {
               setLastCloudSync(new Date());
               setIsCloudConnected(true);
