@@ -94,11 +94,18 @@ export const FeaturedProducts: React.FC = () => {
         </div>
 
         {/* Product Grid */}
-        <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-6">
-          {filteredProducts.map((product) => (
-            <ProductCard key={product.id} product={product} />
-          ))}
-        </div>
+        {filteredProducts.length > 0 ? (
+          <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-3.5 sm:gap-6">
+            {filteredProducts.map((product) => (
+              <ProductCard key={product.id} product={product} />
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12 px-4 rounded-3xl bg-slate-50 border border-slate-200">
+            <p className="text-sm font-bold text-slate-700">Aucun produit disponible dans cette sélection actuellement.</p>
+            <p className="text-xs text-slate-400 mt-1">Revenez bientôt ou contactez notre équipe sur WhatsApp au 77 536 34 37.</p>
+          </div>
+        )}
 
         {/* Bottom CTA to Shop */}
         <div className="mt-12 text-center">

@@ -28,6 +28,7 @@ import {
   collection,
   doc,
   setDoc,
+  getDoc,
   getDocs,
   onSnapshot,
   deleteDoc,
@@ -132,6 +133,8 @@ interface StoreContextType {
   addProduct: (product: Omit<Product, 'id' | 'createdAt'>) => void;
   updateProduct: (id: string, product: Partial<Product>) => void;
   deleteProduct: (id: string) => void;
+  resetProductCatalog: () => Promise<boolean>;
+  restoreInitialProducts: () => Promise<boolean>;
   
   addCategory: (category: Omit<Category, 'id'>) => void;
   updateCategory: (id: string, category: Partial<Category>) => void;
@@ -326,23 +329,16 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           cloudProducts.push({ ...(docSnap.data() as Product), id: docSnap.id });
         });
 
-        if (cloudProducts.length > 0) {
-          // Sort stably so newly added articles appear first across all devices
-          cloudProducts.sort((a, b) => {
-            const timeA = new Date(a.createdAt || 0).getTime() || 0;
-            const timeB = new Date(b.createdAt || 0).getTime() || 0;
-            if (timeB !== timeA) return timeB - timeA;
-            return a.title.localeCompare(b.title);
-          });
-          setProducts(cloudProducts);
-          localStorage.setItem('tme_products', JSON.stringify(cloudProducts));
-        } else if (!hasSeededRef.current) {
-          hasSeededRef.current = true;
-          seedInitialFirestoreData();
-        } else {
-          setProducts([]);
-          localStorage.setItem('tme_products', JSON.stringify([]));
-        }
+        // Sort stably so newly added articles appear first across all devices
+        cloudProducts.sort((a, b) => {
+          const timeA = new Date(a.createdAt || 0).getTime() || 0;
+          const timeB = new Date(b.createdAt || 0).getTime() || 0;
+          if (timeB !== timeA) return timeB - timeA;
+          return a.title.localeCompare(b.title);
+        });
+
+        setProducts(cloudProducts);
+        localStorage.setItem('tme_products', JSON.stringify(cloudProducts));
 
         setIsCloudConnected(true);
         setCloudSyncStatus('connected');
@@ -390,10 +386,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         snapshot.forEach((docSnap) => {
           cloudCategories.push({ ...(docSnap.data() as Category), id: docSnap.id });
         });
-        if (cloudCategories.length > 0) {
-          setCategories(cloudCategories);
-          localStorage.setItem('tme_categories', JSON.stringify(cloudCategories));
-        }
+        setCategories(cloudCategories);
+        localStorage.setItem('tme_categories', JSON.stringify(cloudCategories));
       },
       (error) => console.warn('Firestore Categories sync error:', error)
     );
@@ -421,16 +415,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
           cloudArticles.push({ ...(docSnap.data() as Article), id: docSnap.id });
         });
         cloudArticles.sort((a, b) => b.id.localeCompare(a.id));
-        if (cloudArticles.length > 0) {
-          setArticles(cloudArticles);
-          localStorage.setItem('tme_articles', JSON.stringify(cloudArticles));
-        } else if (!hasSeededRef.current) {
-          hasSeededRef.current = true;
-          seedInitialFirestoreData();
-        } else {
-          setArticles([]);
-          localStorage.setItem('tme_articles', JSON.stringify([]));
-        }
+        setArticles(cloudArticles);
+        localStorage.setItem('tme_articles', JSON.stringify(cloudArticles));
       },
       (error) => console.warn('Firestore Articles sync error:', error)
     );
@@ -443,13 +429,25 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         snapshot.forEach((docSnap) => {
           cloudPages.push({ ...(docSnap.data() as CustomPage), id: docSnap.id });
         });
-        if (cloudPages.length > 0) {
-          setPages(cloudPages);
-          localStorage.setItem('tme_pages', JSON.stringify(cloudPages));
-        }
+        setPages(cloudPages);
+        localStorage.setItem('tme_pages', JSON.stringify(cloudPages));
       },
       (error) => console.warn('Firestore Pages sync error:', error)
     );
+
+    // Optional: One-time bootstrap if Firestore has never been initialized at all
+    const checkAndInitDb = async () => {
+      try {
+        const configSnap = await getDoc(doc(db, 'settings', 'store_config'));
+        if (!configSnap.exists()) {
+          console.log('Première initialisation de la base Firestore...');
+          await seedInitialFirestoreData();
+        }
+      } catch (err) {
+        console.warn('Vérification configuration initiale:', err);
+      }
+    };
+    checkAndInitDb();
 
     return () => {
       unsubscribeOrders();
@@ -1026,6 +1024,76 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
     addToast('Article supprimé de la base de données', 'info');
   };
 
+  // Réinitialiser le catalogue des produits (remettre à zéro et supprimer tous les produits de Firestore)
+  const resetProductCatalog = async (): Promise<boolean> => {
+    setIsSyncingNow(true);
+    setCloudSyncStatus('syncing');
+
+    // Mise à jour optimiste locale immédiate
+    setProducts([]);
+    localStorage.setItem('tme_products', JSON.stringify([]));
+
+    try {
+      const snap = await getDocs(collection(db, 'products'));
+      const docs = snap.docs;
+
+      // Suppression par lots (limite Firestore de 500 opérations par batch)
+      for (let i = 0; i < docs.length; i += 400) {
+        const batch = writeBatch(db);
+        const chunk = docs.slice(i, i + 400);
+        chunk.forEach((d) => {
+          batch.delete(doc(db, 'products', d.id));
+        });
+        await batch.commit();
+      }
+
+      setLastCloudSync(new Date());
+      setIsCloudConnected(true);
+      setCloudSyncStatus('connected');
+      addToast('Catalogue réinitialisé à zéro : tous les produits ont été supprimés', 'success');
+      return true;
+    } catch (err: any) {
+      console.error('Erreur réinitialisation catalogue Firestore:', err);
+      addToast(`Erreur cloud : ${err?.message || 'Échec de réinitialisation'}`, 'error');
+      setCloudSyncStatus('offline');
+      return false;
+    } finally {
+      setIsSyncingNow(false);
+    }
+  };
+
+  // Restaurer le catalogue initial avec les 62 produits complets
+  const restoreInitialProducts = async (): Promise<boolean> => {
+    setIsSyncingNow(true);
+    setCloudSyncStatus('syncing');
+
+    try {
+      const chunkSize = 350;
+      for (let i = 0; i < initialProducts.length; i += chunkSize) {
+        const batch = writeBatch(db);
+        const chunk = initialProducts.slice(i, i + chunkSize);
+        chunk.forEach((p) => {
+          batch.set(doc(db, 'products', p.id), sanitizeForFirestore(p));
+        });
+        await batch.commit();
+      }
+
+      setProducts(initialProducts);
+      localStorage.setItem('tme_products', JSON.stringify(initialProducts));
+      setLastCloudSync(new Date());
+      setIsCloudConnected(true);
+      setCloudSyncStatus('connected');
+      addToast('Catalogue initial par défaut restauré avec succès dans Firestore !', 'success');
+      return true;
+    } catch (err: any) {
+      console.error('Erreur restauration catalogue:', err);
+      addToast(`Erreur cloud : ${err?.message || 'Échec de synchronisation'}`, 'error');
+      return false;
+    } finally {
+      setIsSyncingNow(false);
+    }
+  };
+
   // CRUD for Categories
   const addCategory = (categoryData: Omit<Category, 'id'>) => {
     const id = categoryData.slug || `cat-${Date.now()}`;
@@ -1483,6 +1551,8 @@ export const StoreProvider: React.FC<{ children: React.ReactNode }> = ({ childre
         addProduct,
         updateProduct,
         deleteProduct,
+        resetProductCatalog,
+        restoreInitialProducts,
         addCategory,
         updateCategory,
         deleteCategory,

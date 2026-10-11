@@ -72,6 +72,8 @@ export const AdminPanel: React.FC = () => {
     addProduct,
     updateProduct,
     deleteProduct,
+    resetProductCatalog,
+    restoreInitialProducts,
     createOrder,
     updateOrderStatus,
     updatePaymentStatus,
@@ -107,6 +109,12 @@ export const AdminPanel: React.FC = () => {
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [productToDelete, setProductToDelete] = useState<Product | null>(null);
   const [isDeletingProduct, setIsDeletingProduct] = useState(false);
+
+  // Catalog Reset & Restore Modal state
+  const [showResetCatalogModal, setShowResetCatalogModal] = useState(false);
+  const [isResettingCatalog, setIsResettingCatalog] = useState(false);
+  const [showRestoreCatalogModal, setShowRestoreCatalogModal] = useState(false);
+  const [isRestoringCatalog, setIsRestoringCatalog] = useState(false);
 
   // Order Deletion Warning & Confirmation Modal state
   const [orderToDelete, setOrderToDelete] = useState<Order | null>(null);
@@ -692,119 +700,197 @@ export const AdminPanel: React.FC = () => {
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div>
                 <h2 className="text-lg font-black text-slate-900">Articles en vente à Dakar</h2>
-                <p className="text-xs text-slate-500">Ajoutez, modifiez le prix FCFA, ajustez les stocks ou créez des ventes flash.</p>
+                <p className="text-xs text-slate-500">Ajoutez, modifiez le prix FCFA, ajustez les stocks ou réinitialisez le catalogue à zéro.</p>
               </div>
-              <button
-                onClick={() => {
-                  setEditingProductId(null);
-                  setProductForm({
-                    title: '',
-                    brand: 'Samsung',
-                    price: 50000,
-                    compareAtPrice: 65000,
-                    category: 'telephones-accessoires',
-                    inStock: true,
-                    stockCount: 10,
-                    rating: 4.9,
-                    reviewCount: 5,
-                    images: ['https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=700&auto=format&fit=crop&q=80'],
-                    description: 'Description détaillée du produit.',
-                    features: ['Garantie officielle', 'Livraison 2h à 4h Dakar'],
-                    specs: { 'État': 'Neuf' },
-                    sku: 'TME-' + Math.floor(1000 + Math.random() * 9000),
-                    isFeatured: true,
-                    isFlashSale: false,
-                    warranty: 'Garantie 12 Mois'
-                  });
-                  setShowAddProductModal(true);
-                }}
-                className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-black flex items-center gap-2 shadow-md"
-              >
-                <Plus className="w-4 h-4" />
-                <span>Ajouter un Produit</span>
-              </button>
+              <div className="flex items-center gap-2.5 flex-wrap">
+                <button
+                  type="button"
+                  onClick={() => setShowResetCatalogModal(true)}
+                  disabled={products.length === 0 || isResettingCatalog}
+                  className="px-4 py-2.5 bg-rose-50 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed text-rose-700 border border-rose-200 hover:border-rose-300 rounded-2xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs"
+                  title="Supprimer tous les produits du catalogue dans Firestore (remise à zéro)"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-rose-600" />
+                  <span>Réinitialiser catalogue ({products.length})</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setShowRestoreCatalogModal(true)}
+                  disabled={isRestoringCatalog}
+                  className="px-4 py-2.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-700 border border-emerald-200 hover:border-emerald-300 rounded-2xl text-xs font-black flex items-center gap-1.5 transition-all shadow-xs"
+                  title="Restaurer le catalogue initial avec les 62 produits démo"
+                >
+                  <RotateCcw className={`w-3.5 h-3.5 text-emerald-600 ${isRestoringCatalog ? 'animate-spin' : ''}`} />
+                  <span>Restaurer catalogue démo</span>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setEditingProductId(null);
+                    setProductForm({
+                      title: '',
+                      brand: 'Samsung',
+                      price: 50000,
+                      compareAtPrice: 65000,
+                      category: 'telephones-accessoires',
+                      inStock: true,
+                      stockCount: 10,
+                      rating: 4.9,
+                      reviewCount: 5,
+                      images: ['https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=700&auto=format&fit=crop&q=80'],
+                      description: 'Description détaillée du produit.',
+                      features: ['Garantie officielle', 'Livraison 2h à 4h Dakar'],
+                      specs: { 'État': 'Neuf' },
+                      sku: 'TME-' + Math.floor(1000 + Math.random() * 9000),
+                      isFeatured: true,
+                      isFlashSale: false,
+                      warranty: 'Garantie 12 Mois'
+                    });
+                    setShowAddProductModal(true);
+                  }}
+                  className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-black flex items-center gap-2 shadow-md shrink-0"
+                >
+                  <Plus className="w-4 h-4" />
+                  <span>Ajouter un Produit</span>
+                </button>
+              </div>
             </div>
 
-            {/* Products Table */}
-            <div className="overflow-x-auto">
-              <table className="w-full text-left text-xs border-collapse">
-                <thead>
-                  <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 uppercase font-black tracking-wider text-[10px]">
-                    <th className="p-3">Produit</th>
-                    <th className="p-3">Catégorie</th>
-                    <th className="p-3">Prix (FCFA)</th>
-                    <th className="p-3">Stock Dakar</th>
-                    <th className="p-3">Statut</th>
-                    <th className="p-3 text-right">Actions</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-slate-100">
-                  {products.map((p) => (
-                    <tr key={p.id} className="hover:bg-slate-50 transition-colors">
-                      <td className="p-3">
-                        <div className="flex items-center gap-3">
-                          <img
-                            src={p.images[0]}
-                            alt={p.title}
-                            className="w-12 h-12 rounded-xl object-contain bg-slate-100 border border-slate-200 p-1 shrink-0"
-                          />
-                          <div>
-                            <span className="font-bold text-slate-900 line-clamp-1">{p.title}</span>
-                            <span className="text-[10px] text-slate-400 font-mono">{p.sku} • {p.brand}</span>
-                          </div>
-                        </div>
-                      </td>
-                      <td className="p-3">
-                        <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
-                          {p.category}
-                        </span>
-                      </td>
-                      <td className="p-3 font-black text-slate-900">
-                        {formatFCFA(p.price)}
-                        {p.compareAtPrice && (
-                          <span className="block text-[10px] text-slate-400 line-through">
-                            {formatFCFA(p.compareAtPrice)}
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 font-bold text-slate-700">
-                        {p.stockCount} unités
-                      </td>
-                      <td className="p-3">
-                        {p.inStock ? (
-                          <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
-                            En stock
-                          </span>
-                        ) : (
-                          <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 text-[10px] font-bold">
-                            Rupture
-                          </span>
-                        )}
-                      </td>
-                      <td className="p-3 text-right">
-                        <div className="flex items-center justify-end gap-2">
-                          <button
-                            onClick={() => handleEditProductClick(p)}
-                            className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
-                            title="Modifier ce produit"
-                          >
-                            <Edit2 className="w-4 h-4" />
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => setProductToDelete(p)}
-                            className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all group"
-                            title="Supprimer ce produit (demande confirmation)"
-                          >
-                            <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform text-rose-500" />
-                          </button>
-                        </div>
-                      </td>
+            {/* Products Table or Empty State */}
+            {products.length === 0 ? (
+              <div className="p-12 text-center bg-slate-50/80 rounded-3xl border-2 border-dashed border-slate-200 space-y-4">
+                <div className="w-16 h-16 mx-auto rounded-3xl bg-slate-100 border border-slate-200 flex items-center justify-center text-slate-400">
+                  <Package className="w-8 h-8" />
+                </div>
+                <div>
+                  <h3 className="text-base font-black text-slate-900 mb-1">
+                    Le catalogue des produits est actuellement vide (0 article)
+                  </h3>
+                  <p className="text-xs text-slate-500 max-w-md mx-auto">
+                    Le catalogue a été remis à zéro. Vous pouvez créer de nouveaux articles à tout moment ou réinjecter le catalogue de démonstration initial (62 articles).
+                  </p>
+                </div>
+                <div className="flex items-center justify-center gap-3 pt-2">
+                  <button
+                    onClick={() => {
+                      setEditingProductId(null);
+                      setProductForm({
+                        title: '',
+                        brand: 'Samsung',
+                        price: 50000,
+                        compareAtPrice: 65000,
+                        category: 'telephones-accessoires',
+                        inStock: true,
+                        stockCount: 10,
+                        rating: 4.9,
+                        reviewCount: 5,
+                        images: ['https://images.unsplash.com/photo-1598327105666-5b89351aff97?w=700&auto=format&fit=crop&q=80'],
+                        description: 'Description détaillée du produit.',
+                        features: ['Garantie officielle', 'Livraison 2h à 4h Dakar'],
+                        specs: { 'État': 'Neuf' },
+                        sku: 'TME-' + Math.floor(1000 + Math.random() * 9000),
+                        isFeatured: true,
+                        isFlashSale: false,
+                        warranty: 'Garantie 12 Mois'
+                      });
+                      setShowAddProductModal(true);
+                    }}
+                    className="px-5 py-2.5 bg-blue-600 hover:bg-blue-700 text-white rounded-2xl text-xs font-black flex items-center gap-2 shadow-md transition-all"
+                  >
+                    <Plus className="w-4 h-4" />
+                    <span>Ajouter un premier produit</span>
+                  </button>
+                  <button
+                    onClick={() => setShowRestoreCatalogModal(true)}
+                    className="px-5 py-2.5 bg-slate-200 hover:bg-slate-300 text-slate-800 rounded-2xl text-xs font-black flex items-center gap-2 transition-all"
+                  >
+                    <RotateCcw className="w-4 h-4" />
+                    <span>Restaurer catalogue démo (62 articles)</span>
+                  </button>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-xs border-collapse">
+                  <thead>
+                    <tr className="border-b border-slate-200 bg-slate-50 text-slate-600 uppercase font-black tracking-wider text-[10px]">
+                      <th className="p-3">Produit</th>
+                      <th className="p-3">Catégorie</th>
+                      <th className="p-3">Prix (FCFA)</th>
+                      <th className="p-3">Stock Dakar</th>
+                      <th className="p-3">Statut</th>
+                      <th className="p-3 text-right">Actions</th>
                     </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+                  </thead>
+                  <tbody className="divide-y divide-slate-100">
+                    {products.map((p) => (
+                      <tr key={p.id} className="hover:bg-slate-50 transition-colors">
+                        <td className="p-3">
+                          <div className="flex items-center gap-3">
+                            <img
+                              src={p.images[0]}
+                              alt={p.title}
+                              className="w-12 h-12 rounded-xl object-contain bg-slate-100 border border-slate-200 p-1 shrink-0"
+                            />
+                            <div>
+                              <span className="font-bold text-slate-900 line-clamp-1">{p.title}</span>
+                              <span className="text-[10px] text-slate-400 font-mono">{p.sku} • {p.brand}</span>
+                            </div>
+                          </div>
+                        </td>
+                        <td className="p-3">
+                          <span className="px-2 py-0.5 rounded-full bg-slate-100 text-slate-700 text-[10px] font-bold">
+                            {p.category}
+                          </span>
+                        </td>
+                        <td className="p-3 font-black text-slate-900">
+                          {formatFCFA(p.price)}
+                          {p.compareAtPrice && (
+                            <span className="block text-[10px] text-slate-400 line-through">
+                              {formatFCFA(p.compareAtPrice)}
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 font-bold text-slate-700">
+                          {p.stockCount} unités
+                        </td>
+                        <td className="p-3">
+                          {p.inStock ? (
+                            <span className="px-2 py-0.5 rounded bg-emerald-100 text-emerald-800 text-[10px] font-bold">
+                              En stock
+                            </span>
+                          ) : (
+                            <span className="px-2 py-0.5 rounded bg-rose-100 text-rose-800 text-[10px] font-bold">
+                              Rupture
+                            </span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right">
+                          <div className="flex items-center justify-end gap-2">
+                            <button
+                              onClick={() => handleEditProductClick(p)}
+                              className="p-2 text-slate-600 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all"
+                              title="Modifier ce produit"
+                            >
+                              <Edit2 className="w-4 h-4" />
+                            </button>
+                            <button
+                              type="button"
+                              onClick={() => setProductToDelete(p)}
+                              className="p-2 text-slate-500 hover:text-rose-600 hover:bg-rose-50 rounded-xl transition-all group"
+                              title="Supprimer ce produit (demande confirmation)"
+                            >
+                              <Trash2 className="w-4 h-4 group-hover:scale-110 transition-transform text-rose-500" />
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            )}
           </div>
         )}
 
@@ -2134,6 +2220,142 @@ export const AdminPanel: React.FC = () => {
                 >
                   <Trash2 className="w-4 h-4" />
                   <span>{isDeletingOrder ? 'Suppression en cours...' : 'Oui, Supprimer définitivement'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================== */}
+        {/* MODAL: RÉINITIALISATION COMPLETE DU CATALOGUE PRODUITS      */}
+        {/* ========================================================== */}
+        {showResetCatalogModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in">
+            <div
+              className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95"
+              role="alertdialog"
+              aria-modal="true"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-rose-100 border border-rose-200 flex items-center justify-center text-rose-600 shrink-0">
+                  <AlertTriangle className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-black text-slate-900">
+                    Réinitialiser le catalogue des produits à zéro ?
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Cette action va supprimer définitivement l'ensemble des <strong className="text-rose-600 font-black">{products.length} produit(s)</strong> actuellement dans le catalogue et dans la base centrale <strong>Cloud Firestore</strong>.
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-rose-50/80 border border-rose-200 p-4 space-y-2 text-xs text-rose-900">
+                <p className="font-bold flex items-center gap-1.5">
+                  <AlertTriangle className="w-4 h-4 shrink-0 text-rose-600" />
+                  Conséquences de la remise à zéro :
+                </p>
+                <ul className="list-disc pl-5 space-y-1 text-rose-800">
+                  <li>Tous les articles ({products.length}) seront supprimés de la base Firestore et du cache.</li>
+                  <li>Le catalogue de la boutique sera vide (0 article) pour tous les visiteurs et appareils connectés.</li>
+                  <li>Vous pourrez réajouter des produits un par un ou restaurer le catalogue démo si besoin.</li>
+                </ul>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isResettingCatalog}
+                  onClick={() => setShowResetCatalogModal(false)}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={isResettingCatalog}
+                  onClick={async () => {
+                    setIsResettingCatalog(true);
+                    try {
+                      const success = await resetProductCatalog();
+                      if (success) {
+                        setShowResetCatalogModal(false);
+                      }
+                    } finally {
+                      setIsResettingCatalog(false);
+                    }
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-rose-600 hover:bg-rose-700 active:bg-rose-800 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <Trash2 className="w-4 h-4" />
+                  <span>{isResettingCatalog ? 'Suppression en cours...' : 'Oui, Remettre le catalogue à zéro'}</span>
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ========================================================== */}
+        {/* MODAL: RESTAURATION DU CATALOGUE PRODUITS PAR DÉFAUT        */}
+        {/* ========================================================== */}
+        {showRestoreCatalogModal && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/70 backdrop-blur-xs animate-in fade-in">
+            <div
+              className="bg-white rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl border border-slate-200 space-y-5 animate-in zoom-in-95"
+              role="alertdialog"
+              aria-modal="true"
+            >
+              <div className="flex items-start gap-4">
+                <div className="w-12 h-12 rounded-2xl bg-emerald-100 border border-emerald-200 flex items-center justify-center text-emerald-600 shrink-0">
+                  <RotateCcw className="w-6 h-6" />
+                </div>
+                <div className="space-y-1">
+                  <h3 className="text-base font-black text-slate-900">
+                    Restaurer le catalogue par défaut ?
+                  </h3>
+                  <p className="text-xs text-slate-600 leading-relaxed">
+                    Voulez-vous réinjecter les 62 produits complets (téléphones, réfrigérateurs, téléviseurs, cuisinières, climatiseurs, accessoires) directement dans la base centrale <strong>Cloud Firestore</strong> ?
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-2xl bg-emerald-50/80 border border-emerald-200 p-4 space-y-1.5 text-xs text-emerald-900">
+                <p className="font-bold flex items-center gap-1.5">
+                  <CheckCircle className="w-4 h-4 shrink-0 text-emerald-600" />
+                  Restauration complète :
+                </p>
+                <p className="text-emerald-800">
+                  Les 62 articles par défaut avec photos, tarifs en FCFA, garanties et caractéristiques techniques seront synchronisés en direct sur tous les appareils connectés.
+                </p>
+              </div>
+
+              <div className="flex flex-col sm:flex-row items-center justify-end gap-2.5 pt-2 border-t border-slate-100">
+                <button
+                  type="button"
+                  disabled={isRestoringCatalog}
+                  onClick={() => setShowRestoreCatalogModal(false)}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-slate-100 hover:bg-slate-200 active:bg-slate-300 text-slate-700 rounded-xl text-xs font-bold transition-colors cursor-pointer"
+                >
+                  Annuler
+                </button>
+                <button
+                  type="button"
+                  disabled={isRestoringCatalog}
+                  onClick={async () => {
+                    setIsRestoringCatalog(true);
+                    try {
+                      const success = await restoreInitialProducts();
+                      if (success) {
+                        setShowRestoreCatalogModal(false);
+                      }
+                    } finally {
+                      setIsRestoringCatalog(false);
+                    }
+                  }}
+                  className="w-full sm:w-auto px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 active:bg-emerald-800 text-white rounded-xl text-xs font-black shadow-md transition-all flex items-center justify-center gap-2 cursor-pointer"
+                >
+                  <RotateCcw className={`w-4 h-4 ${isRestoringCatalog ? 'animate-spin' : ''}`} />
+                  <span>{isRestoringCatalog ? 'Restauration en cours...' : 'Oui, Restaurer les 62 produits'}</span>
                 </button>
               </div>
             </div>
